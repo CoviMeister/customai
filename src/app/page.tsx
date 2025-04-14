@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import supabase from '../lib/supabaseClient';
 
 export default function Home() {
@@ -9,12 +9,8 @@ export default function Home() {
   const [userPrompt, setUserPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('gpt-4');
   const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(2000);
-  const [response, setResponse] = useState('');
   const [conversationHistory, setConversationHistory] = useState<Array<{ role: string; content: string }>>([]);
   const [availableModels, setAvailableModels] = useState<Array<{id: string, name: string}>>([]);
-  const [isLoadingModels, setIsLoadingModels] = useState(false);
-  const [modelError, setModelError] = useState('');
   const [sessions, setSessions] = useState<Array<{id: string, created_at: string, system?: string, model?: string}>>([]); // Added optional fields for display
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null); // State for active session
@@ -83,8 +79,6 @@ export default function Home() {
   // Fetch available models from our API endpoint
   useEffect(() => {
     const fetchModels = async () => {
-      setIsLoadingModels(true);
-      setModelError('');
       
       try {
         // Use our server-side API endpoint instead of directly calling OpenRouter
@@ -95,7 +89,7 @@ export default function Home() {
         }
         
         const data = await response.json();
-        const models = data.data.map((model: any) => ({
+        const models = data.data.map((model: { id: string; name: string }) => ({
           id: model.id,
           name: model.name
         }));
@@ -103,7 +97,7 @@ export default function Home() {
         setAvailableModels(models);
       } catch (error) {
         console.error('Error fetching models:', error);
-        setModelError('Failed to load available models');
+        console.error('Failed to load available models'); // Log error instead of setting state
         // Set some default models as fallback
         setAvailableModels([
           { id: 'gpt-4', name: 'GPT-4' },
@@ -112,32 +106,12 @@ export default function Home() {
           { id: 'llama-3', name: 'Llama 3' }
         ]);
       } finally {
-        setIsLoadingModels(false);
       }
     };
     
     fetchModels();
   }, []);
   
-  // Handle file upload
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const content = JSON.parse(e.target?.result as string);
-          if (content.systemInstruction) {
-            setSystemInstruction(content.systemInstruction);
-          }
-        } catch (error) {
-          console.error('Error parsing JSON file:', error);
-        }
-      };
-      reader.readAsText(file);
-    }
-  };
-
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,7 +122,8 @@ export default function Home() {
     
     try {
       // Set loading state if needed
-      setResponse('Generating response...');
+      // Indicate loading state, e.g., by updating a different state variable or UI element
+      console.log('Generating response...'); // Placeholder for loading indication
       
       // Create a new session in Supabase if no session is active
     let currentSessionId = activeSessionId;
@@ -252,7 +227,7 @@ export default function Home() {
       // Add AI response to conversation history
       const newAiMessage = { role: 'assistant', content: aiResponse };
       setConversationHistory(prev => [...prev, newAiMessage]);
-      setResponse(aiResponse);
+      // The AI response is added to conversationHistory state (line 254), which should update the UI
       
       // Save assistant message to Supabase
        if (!currentSessionId) {
@@ -276,7 +251,9 @@ export default function Home() {
        }
     } catch (error) {
       console.error('Error generating response:', error);
-      setResponse(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+      // Display error in the chat or via a notification
+      const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`;
+      setConversationHistory(prev => [...prev, { role: 'system', content: errorMessage }]); // Add error to chat
       // Log session state for debugging
       console.log('Current session state:', { activeSessionId });
     } finally {
